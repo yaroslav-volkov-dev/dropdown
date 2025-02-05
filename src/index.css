@@ -5,6 +5,24 @@
     list-style: none;
 }
 
+@keyframes appearance {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes disappearance {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
 button {
     display: block;
     width: 100%;
@@ -15,12 +33,14 @@ button {
 }
 
 .App {
-    padding-top: 500px;
+    padding: 100px;
     font-family: sans-serif;
     text-align: center;
     height: 100vh;
     display: flex;
     justify-content: center;
+    align-items: center;
+    gap: 20px
 }
 
 .container {
@@ -39,10 +59,19 @@ button {
 }
 
 .dropdown-menu {
+    position: fixed;
     border: 1px solid #a7a7a7;
     border-radius: 4px;
     overflow: hidden;
     box-shadow: rgba(149, 157, 165, 0.2) 0px 8px 24px;
+}
+
+.dropdown-menu.opening {
+    animation: appearance 300ms ease-out forwards;
+}
+
+.dropdown-menu.closing {
+    animation: disappearance 300ms ease-in forwards;
 }
 
 .dropdown-menu-button {

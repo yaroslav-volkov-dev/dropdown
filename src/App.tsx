@@ -1,18 +1,19 @@
 import { ForwardedRef, forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { clsx } from "clsx";
 import "./index.css";
+
+enum DropdownStatus {
+  CLOSED = 'CLOSED',
+  OPEN = 'OPEN',
+  CLOSING = 'CLOSING',
+  OPENING = 'OPENING',
+}
 
 type Option = {
   id: string;
   label: string;
 };
-
-type PositionCoordinates = {
-  top: number | null;
-  bottom: number | null;
-  left: number | null;
-  width: number | null;
-}
 
 type DropdownProps = {
   options: Option[];
@@ -23,34 +24,28 @@ type DropdownProps = {
 type DropdownMenuProps = {
   options: Option[];
   onSelect: (option: Option) => void;
-  menuPosition: PositionCoordinates
+  dropdownStatus: DropdownStatus;
 }
+
+const OPEN_DROPDOWN_STATUSES = [DropdownStatus.OPEN, DropdownStatus.OPENING];
+const CLOSED_DROPDOWN_STATUSES = [DropdownStatus.CLOSED, DropdownStatus.CLOSING];
 
 const DropdownMenu = forwardRef((
   {
     options,
     onSelect,
-    menuPosition
+    dropdownStatus
   }: DropdownMenuProps, ref: ForwardedRef<HTMLUListElement>) => {
 
-  const {
-    top,
-    width,
-    left,
-    bottom
-  } = menuPosition;
+  if (dropdownStatus === DropdownStatus.CLOSED) return null;
 
   return createPortal(
     <ul
       ref={ref}
-      className="dropdown-menu"
-      style={{
-        position: "fixed",
-        ...(left && { left }),
-        ...(width && { width }),
-        ...(top && { top }),
-        ...(bottom && { bottom }),
-      }}
+      className={clsx('dropdown-menu', {
+        ['opening']: dropdownStatus === DropdownStatus.OPENING,
+        ['closing']: dropdownStatus === DropdownStatus.CLOSING
+      })}
     >
       {options.map(({ id, label }, index) => {
         return (
@@ -71,39 +66,76 @@ const DropdownMenu = forwardRef((
 });
 
 const Dropdown = ({ options, selectedOptionId, onSelect }: DropdownProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<PositionCoordinates>({
-    top: null,
-    left: null,
-    width: null,
-    bottom: null
-  });
+  const [dropdownStatus, setDropdownStatus] = useState<DropdownStatus>(DropdownStatus.CLOSED);
 
   const dropdownRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLUListElement | null>(null);
   const selectedOption = options.find(({ id }) => id === selectedOptionId);
 
   const updateMenuCoordinates = () => {
-    if (!dropdownRef.current) return;
+    if (!dropdownRef.current || !menuRef.current) return;
 
     const dropdownRect = dropdownRef.current.getBoundingClientRect();
-    const menuHeight = menuRef.current?.offsetHeight || 0;
+    const menuHeight = menuRef.current?.getBoundingClientRect().height || 0;
     const windowHeight = window.innerHeight;
     const shouldRenderMenuUpwards = dropdownRect.bottom + menuHeight > windowHeight;
+    const top = shouldRenderMenuUpwards ? null : `${dropdownRect.bottom}px`;
+    const bottom = shouldRenderMenuUpwards ? `${(windowHeight - dropdownRect.top).toString()}px` : null;
+    const left = `${dropdownRect.x.toString()}px`;
+    const width = `${dropdownRect.width.toString()}px`;
 
-    setMenuPosition({
-      top: shouldRenderMenuUpwards ? null : dropdownRect.bottom,
-      bottom: shouldRenderMenuUpwards ? windowHeight - dropdownRect.top : null,
-      left: dropdownRect.x,
-      width: dropdownRect.width
-    });
+    menuRef.current.style.setProperty('top', top);
+    menuRef.current.style.setProperty('bottom', bottom);
+    menuRef.current.style.setProperty('left', left);
+    menuRef.current.style.setProperty('width', width);
   };
 
+  const openDropdown = () => {
+    setDropdownStatus(DropdownStatus.OPENING);
+  };
+
+  const closeDropdown = () => {
+    setDropdownStatus(DropdownStatus.CLOSING);
+  };
+
+  const onTriggerClick = () => {
+    if (CLOSED_DROPDOWN_STATUSES.includes(dropdownStatus)) {
+      openDropdown();
+      return;
+    }
+    if (OPEN_DROPDOWN_STATUSES.includes(dropdownStatus)) {
+      closeDropdown();
+      return;
+    }
+  };
+
+  useEffect(() => {
+    if(!menuRef.current) return;
+
+    const menuElement = menuRef.current
+    const onTransitionEnd = () => {
+
+      if (dropdownStatus === DropdownStatus.CLOSING) {
+        setDropdownStatus(DropdownStatus.CLOSED);
+      }
+
+      if (dropdownStatus === DropdownStatus.OPENING) {
+        setDropdownStatus(DropdownStatus.OPEN);
+      }
+    };
+
+    menuElement.addEventListener('animationend', onTransitionEnd);
+
+    return () => {
+      menuElement.removeEventListener('animationend', onTransitionEnd);
+    };
+  }, [dropdownStatus]);
+
   useLayoutEffect(() => {
-    if (isOpen) {
+    if (OPEN_DROPDOWN_STATUSES.includes(dropdownStatus)) {
       updateMenuCoordinates();
     }
-  }, [isOpen]);
+  }, [dropdownStatus]);
 
   useEffect(() => {
     const listener = (event: MouseEvent | TouchEvent) => {
@@ -113,7 +145,7 @@ const Dropdown = ({ options, selectedOptionId, onSelect }: DropdownProps) => {
         || dropdownRef.current?.contains(event.target as Node)
       ) return;
 
-      setIsOpen(false);
+      closeDropdown();
     };
     document.addEventListener('mousedown', listener);
     document.addEventListener('touchstart', listener);
@@ -138,20 +170,19 @@ const Dropdown = ({ options, selectedOptionId, onSelect }: DropdownProps) => {
   return (
     <button
       className="dropdown"
-      onClick={() => setIsOpen(prevState => !prevState)}
+      onClick={onTriggerClick}
       ref={dropdownRef}
       tabIndex={0}
     >
       {selectedOption?.label || "Select ..."}
-      <div className={`chevron-icon ${isOpen ? 'chevron-icon-open' : 'chevron-icon-closed'}`} />
-      {isOpen && (
-        <DropdownMenu
-          options={options}
-          onSelect={onSelect}
-          ref={menuRef}
-          menuPosition={menuPosition}
-        />
-      )}
+      <div
+        className={`chevron-icon ${(OPEN_DROPDOWN_STATUSES.includes(dropdownStatus)) ? 'chevron-icon-open' : 'chevron-icon-closed'}`} />
+      <DropdownMenu
+        options={options}
+        onSelect={onSelect}
+        ref={menuRef}
+        dropdownStatus={dropdownStatus}
+      />
     </button>
   );
 };
