@@ -47,12 +47,11 @@ const DropdownMenu = forwardRef((
         ['closing']: dropdownStatus === DropdownStatus.CLOSING
       })}
     >
-      {options.map(({ id, label }, index) => {
+      {options.map(({ id, label }) => {
         return (
           <li className="dropdown-menu-item" key={id}>
             <button
               onClick={() => onSelect({ id, label })}
-              tabIndex={index + 1}
               className="dropdown-menu-button"
             >
               {label}
@@ -172,7 +171,6 @@ const Dropdown = ({ options, selectedOptionId, onSelect }: DropdownProps) => {
       className="dropdown"
       onClick={onTriggerClick}
       ref={dropdownRef}
-      tabIndex={0}
     >
       {selectedOption?.label || "Select ..."}
       <div
